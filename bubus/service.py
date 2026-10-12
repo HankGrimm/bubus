@@ -480,7 +480,37 @@ class EventBus:
             return event_pattern.__name__  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
         return str(event_pattern)
 
-    def remove(self, event_pattern: EventPatternType, handler: ContravariantEventHandler['BaseEvent[Any]']) -> bool:
+    # Overloads mirror on() so handlers typed for a concrete event remain valid.
+    @overload
+    def remove(self, event_pattern: EventPatternType, handler: EventHandlerFunc[T_Event]) -> bool: ...
+
+    @overload
+    def remove(self, event_pattern: EventPatternType, handler: AsyncEventHandlerFunc[T_Event]) -> bool: ...
+
+    @overload
+    def remove(self, event_pattern: EventPatternType, handler: EventHandlerMethod[T_Event]) -> bool: ...
+
+    @overload
+    def remove(self, event_pattern: EventPatternType, handler: AsyncEventHandlerMethod[T_Event]) -> bool: ...
+
+    @overload
+    def remove(self, event_pattern: EventPatternType, handler: EventHandlerClassMethod['BaseEvent[Any]']) -> bool: ...
+
+    @overload
+    def remove(self, event_pattern: EventPatternType, handler: AsyncEventHandlerClassMethod['BaseEvent[Any]']) -> bool: ...
+
+    def remove(
+        self,
+        event_pattern: EventPatternType,
+        handler: (
+            EventHandlerFunc[T_Event]
+            | AsyncEventHandlerFunc['BaseEvent[Any]']
+            | EventHandlerMethod[T_Event]
+            | AsyncEventHandlerMethod['BaseEvent[Any]']
+            | EventHandlerClassMethod['BaseEvent[Any]']
+            | AsyncEventHandlerClassMethod['BaseEvent[Any]']
+        ),
+    ) -> bool:
         """
         Unsubscribe a previously registered handler from events matching a pattern.
 
@@ -498,9 +528,14 @@ class EventBus:
         """
         event_key = self._get_event_key(event_pattern)
         registered_handlers = self.handlers.get(event_key, [])
-        if handler in registered_handlers:
-            registered_handlers.remove(handler)
-            logger.debug(f'👂 {self}.remove({event_key}, {get_handler_name(handler)}) Unregistered event handler')
+        registered_handler = cast(ContravariantEventHandler['BaseEvent[Any]'], handler)
+        if registered_handler in registered_handlers:
+            registered_handlers.remove(registered_handler)
+            if not registered_handlers:
+                del self.handlers[event_key]
+            logger.debug(
+                f'👂 {self}.remove({event_key}, {get_handler_name(registered_handler)}) Unregistered event handler'
+            )
             return True
         return False
 

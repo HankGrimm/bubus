@@ -18,6 +18,7 @@ async def test_remove_handler_by_event_class_stops_delivery():
 
     bus.on(PingEvent, handler)
     assert bus.remove(PingEvent, handler) is True
+    assert PingEvent.__name__ not in bus.handlers
     assert bus.remove(PingEvent, handler) is False  # second removal is a no-op
 
     await bus.dispatch(PingEvent())
